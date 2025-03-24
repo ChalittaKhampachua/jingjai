@@ -24,7 +24,7 @@ const SpeechRecognition: React.FC = () => {
     // Send the transcribed text to the server
     sendMessage(transcript)
       .then((response) => {
-        console.log("Message sent successfully:", response);
+        console.log("Message sent successfully[page]:", response);
         setIsSending(false);
       })
       .catch((error) => {
@@ -88,7 +88,7 @@ const SpeechRecognition: React.FC = () => {
         sx={{
           px: 3,
           py: 1.5,
-          mt: 3,
+          mt: 1,
           borderRadius: 8,
           fontSize: "1rem",
           transition: "all 0.3s ease",

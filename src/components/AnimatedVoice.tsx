@@ -23,8 +23,8 @@ const AnimatedVoice: React.FC<AnimatedVoiceProps> = ({ isAnimating }) => {
     <Lottie
       options={defaultOptions}
       isStopped={!isAnimating}
-      height={300}
-      width={300}
+      height={200}
+      width={200}
     />
   );
 };

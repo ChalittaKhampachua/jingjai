@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import {
   Box,
-  TextField,
   Button,
   Typography,
   Select,
@@ -9,7 +8,6 @@ import {
   FormControl,
   InputLabel,
   Slider,
-  Grid,
   IconButton,
   Paper,
   Tooltip,
@@ -20,153 +18,84 @@ import PauseIcon from "@mui/icons-material/Pause";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import StopIcon from "@mui/icons-material/Stop";
 import SettingsIcon from "@mui/icons-material/Settings";
-
-interface Voice {
-  name: string;
-  lang: string;
-  voiceURI: string;
-}
+import { getMessage } from "api/messageApi";
+import useSpeechSynthesis from "../hooks/useSpeechSynthesis"; // Import custom hook
 
 const TextToSpeech: React.FC = () => {
   const [text, setText] = useState<string>("");
-  const [voices, setVoices] = useState<Voice[]>([]);
-  const [selectedVoice, setSelectedVoice] = useState<string>("");
-  const [rate, setRate] = useState<number>(1);
-  const [pitch, setPitch] = useState<number>(1);
-  const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
-  const [isPaused, setIsPaused] = useState<boolean>(false);
+  const [result, setResult] = useState<any | null>(null);
   const [showSettings, setShowSettings] = useState<boolean>(false);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const speechSynthRef = useRef<SpeechSynthesis | null>(null);
-  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
-  // โหลดรายการเสียง
+  const {
+    voices,
+    selectedVoice,
+    setSelectedVoice,
+    rate,
+    setRate,
+    pitch,
+    setPitch,
+    isSpeaking,
+    isPaused,
+    speak,
+    pause,
+    resume,
+    stop,
+  } = useSpeechSynthesis(); // Use custom hook
+
   useEffect(() => {
-    speechSynthRef.current = window.speechSynthesis;
+    let isMounted = true;
 
-    const loadVoices = () => {
-      const availableVoices = speechSynthRef.current?.getVoices() || [];
-
-      const voiceList = availableVoices
-        .filter(
-          (voice) => voice.lang.includes("th") || voice.lang.includes("en")
-        ) // กรองเฉพาะเสียงภาษาไทยและอังกฤษ
-        .map((voice) => ({
-          name: voice.name,
-          lang: voice.lang,
-          voiceURI: voice.voiceURI,
-        }));
-
-      setVoices(voiceList);
-
-      // เลือกเสียงไทยเป็นค่าเริ่มต้นถ้ามี
-      const thVoice = voiceList.find((v) => v.lang.includes("th"));
-      if (thVoice) {
-        setSelectedVoice(thVoice.voiceURI);
-      } else if (voiceList.length > 0) {
-        setSelectedVoice(voiceList[0].voiceURI);
+    const fetchData = async () => {
+      try {
+        const data = await getMessage();
+        console.log("Message received:", data);
+        if (isMounted && data !== null && data !== undefined) {
+          setResult(data);
+          return true;
+        }
+        return false;
+      } catch (error) {
+        console.error("Error fetching result:", error);
+        return false;
       }
-
-      setIsLoading(false);
     };
 
-    // ตรวจสอบว่ามีเสียงพร้อมใช้งานหรือไม่
-    if (speechSynthRef.current?.getVoices()?.length) {
-      loadVoices();
-    }
+    const interval = setInterval(async () => {
+      const hasData = await fetchData();
+      if (hasData) {
+        clearInterval(interval);
+      }
+    }, 3000); // ลดเวลา polling เป็น 3 วินาที
 
-    // รอให้เสียงโหลดเสร็จ
-    speechSynthRef.current?.addEventListener("voiceschanged", loadVoices);
+    // เรียกครั้งแรกทันที
+    fetchData();
 
     return () => {
-      speechSynthRef.current?.removeEventListener("voiceschanged", loadVoices);
-      if (isSpeaking) {
-        speechSynthRef.current?.cancel();
-      }
+      isMounted = false;
+      clearInterval(interval);
     };
   }, []);
 
-  // จัดการสิ้นสุดการพูด
   useEffect(() => {
-    const handleEnd = () => {
-      setIsSpeaking(false);
-      setIsPaused(false);
-    };
-
-    if (utteranceRef.current) {
-      utteranceRef.current.onend = handleEnd;
+    if (result) {
+      console.log("New result received:", result);
+      setText(result);
+      
+      // รอให้ voices โหลดเสร็จก่อน
+      setTimeout(() => {
+        if (!isSpeaking && voices.length > 0) {
+          console.log("Auto speaking result");
+          speak(result);
+        }
+      }, 100);
     }
-
-    return () => {
-      if (utteranceRef.current) {
-        utteranceRef.current.onend = null;
-      }
-    };
-  }, [utteranceRef.current]);
-
-  const speak = () => {
-    if (!text.trim() || !speechSynthRef.current) return;
-
-    // หยุดการพูดปัจจุบัน (ถ้ามี)
-    speechSynthRef.current.cancel();
-
-    // สร้าง utterance ใหม่
-    const utterance = new SpeechSynthesisUtterance(text);
-    utteranceRef.current = utterance;
-
-    // ตั้งค่าเสียง
-    if (selectedVoice) {
-      const voice = speechSynthRef.current
-        .getVoices()
-        .find((v) => v.voiceURI === selectedVoice);
-      if (voice) {
-        utterance.voice = voice;
-      }
-    }
-
-    // ตั้งค่าความเร็วและระดับเสียง
-    utterance.rate = rate;
-    utterance.pitch = pitch;
-
-    // เริ่มพูด
-    setIsSpeaking(true);
-    setIsPaused(false);
-    speechSynthRef.current.speak(utterance);
-
-    // เพิ่ม event listener สำหรับการสิ้นสุดการพูด
-    utterance.onend = () => {
-      setIsSpeaking(false);
-      setIsPaused(false);
-    };
-  };
-
-  const pause = () => {
-    if (speechSynthRef.current && isSpeaking) {
-      speechSynthRef.current.pause();
-      setIsPaused(true);
-    }
-  };
-
-  const resume = () => {
-    if (speechSynthRef.current && isPaused) {
-      speechSynthRef.current.resume();
-      setIsPaused(false);
-    }
-  };
-
-  const stop = () => {
-    if (speechSynthRef.current) {
-      speechSynthRef.current.cancel();
-      setIsSpeaking(false);
-      setIsPaused(false);
-    }
-  };
+  }, [result, voices.length]);
 
   const toggleSettings = () => {
     setShowSettings(!showSettings);
   };
 
-  if (isLoading) {
+  if (voices.length === 0) {
     return (
       <Box sx={{ display: "flex", justifyContent: "center", my: 4 }}>
         <CircularProgress />
@@ -180,22 +109,13 @@ const TextToSpeech: React.FC = () => {
         <Typography variant="h5" gutterBottom>
           Text to Speech
         </Typography>
-        <Typography variant="body2" color="text.secondary" gutterBottom>
-          พิมพ์ข้อความที่ต้องการอ่านออกเสียง
-        </Typography>
       </Box>
 
-      <TextField
-        fullWidth
-        multiline
-        rows={4}
-        label="ข้อความที่ต้องการอ่านออกเสียง"
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        placeholder="พิมพ์ข้อความที่นี่..."
-        variant="outlined"
-        sx={{ mb: 2 }}
-      />
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="body1" gutterBottom>
+          {result ? result : "กำลังรอผลลัพธ์..."}
+        </Typography>
+      </Box>
 
       <Box
         sx={{
@@ -210,7 +130,7 @@ const TextToSpeech: React.FC = () => {
             <Button
               variant="contained"
               color="primary"
-              onClick={speak}
+              onClick={() => speak(result)}
               disabled={!text.trim() || voices.length === 0}
               startIcon={<VolumeUpIcon />}
             >
