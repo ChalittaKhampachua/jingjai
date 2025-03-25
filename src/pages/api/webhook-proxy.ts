@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import axios from 'axios';
 
-const WEBHOOK_URL = "http://localhost:5678/webhook-test/44fee63b-2ff5-4a5e-93b0-0117ac03f941";
+const WEBHOOK_URL = "https://934589f2f60f.ngrok.app/webhook/345d800a-103d-4a42-bbf8-47bc757c4487";
 
 export const config = {
   api: {
